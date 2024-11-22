@@ -164,7 +164,7 @@ int main(){
 
     vector<vector<double>>graph(number_of_vertices, vector<double>(number_of_vertices));
     read_graph(graph, number_of_vertices);
-
+    
     vector<int> path_nearest = nearest_neighbor(graph, number_of_vertices);
     vector<int> path_larger = farthest_neighbor(graph, number_of_vertices);
 

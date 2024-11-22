@@ -73,7 +73,6 @@ ll evaluate_configuration(string config_bi, vector<ll> &profits, vector<ll> &wei
 }
 
 ll knapsack_local_search(vector<ll> &profits, vector<ll>weights, string current_config, ll capacity, ll number_of_intens){
-    
     ll current_value = 0;
     for(int i = 0; i < current_config.size(); i++){
         if(current_config[i] == '1')
@@ -106,13 +105,16 @@ int main(){
     vector<ll> profits(number_of_itens);
     vector<ll> weights(number_of_itens);
 
+    // Leitura da entrada.
     for(ll i = 0; i < number_of_itens; i++){
         cin >> profits[i] >> weights[i];
     }
-
+    
+    // Aplicação das heuristicas gulosas.
     string cost_benefit_config = cost_benefit(profits, weights, number_of_itens, capacity);
     string lightest_item_config = lightest_item(profits, weights, number_of_itens, capacity);
 
+    // Aplicação da busca local em ambas as heuristicas gulosas
     ll result_cost_benefit_config = knapsack_local_search(profits, weights, cost_benefit_config, capacity, number_of_itens);
     ll result_lightest_item_config = knapsack_local_search(profits, weights, lightest_item_config, capacity, number_of_itens);
 
