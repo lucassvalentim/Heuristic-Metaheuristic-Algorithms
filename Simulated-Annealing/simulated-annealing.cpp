@@ -1,170 +1,149 @@
 #include <bits/stdc++.h>
 using namespace std;
 
+// Define um alias para maior clareza no tipo de dado
 #define ll long long
 #define endl '\n'
-const double erro = 1e-2;
+const double ERROR_THRESHOLD = 1e-2;
 
+// Gerador de números aleatórios
 random_device rd;
 mt19937 generator(rd());
 
-vector<vector<double>> read_graph(vector<vector<double>> &graph, int number_of_vertices){
-    vector<pair<ll, ll>> coordinates(number_of_vertices);
+// Lê as coordenadas dos vértices e calcula a matriz de adjacência
+vector<vector<double>> readGraph(vector<vector<double>> &graph, int vertexCount) {
+    vector<pair<ll, ll>> coordinates(vertexCount);
 
+    // Leitura das coordenadas
     ll index, x, y;
-    for(int i = 0; i < number_of_vertices; i++){
+    for (int i = 0; i < vertexCount; i++) {
         cin >> index >> x >> y;
-        index--;
-
+        index--; // Ajusta o índice para zero-based
         coordinates[index] = make_pair(x, y);
     }
 
-    for(int i = 0; i < number_of_vertices; i++){
+    // Preenche a matriz de adjacência com as distâncias euclidianas
+    for (int i = 0; i < vertexCount; i++) {
         ll x1 = coordinates[i].first;
         ll y1 = coordinates[i].second;
-        for(int j = 0; j < number_of_vertices; j++){
+        for (int j = 0; j < vertexCount; j++) {
             ll x2 = coordinates[j].first;
             ll y2 = coordinates[j].second;
-
             graph[i][j] = sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
         }
     }
     return graph;
 }
 
-vector<int> nearest_neighbor(vector<vector<double>> &graph, int number_of_vertices){
-    vector<bool> visited(number_of_vertices, false);
+// Algoritmo do Vizinho Mais Próximo para gerar um caminho inicial
+vector<int> nearestNeighborPath(vector<vector<double>> &graph, int vertexCount) {
+    vector<bool> visited(vertexCount, false);
     vector<int> path;
 
-    int first_vertice = 0;
-    visited[first_vertice] = true;
-    path.push_back(first_vertice);
+    int startVertex = 0; // Começa pelo primeiro vértice
+    visited[startVertex] = true;
+    path.push_back(startVertex);
 
-    while(1){
-        int current_vertice = path.back();
-        int lowest = -1;
-        int pos = -1;
+    while (true) {
+        int currentVertex = path.back();
+        int nearestVertex = -1;
+        int nearestDistance = -1;
 
-        for(int i = 0; i < number_of_vertices; i++){
-            if(visited[i])
-                continue;
-            
-            if(lowest == -1 || graph[current_vertice][i] < lowest){
-                lowest = graph[current_vertice][i];
-                pos = i;
+        // Busca o vértice mais próximo não visitado
+        for (int i = 0; i < vertexCount; i++) {
+            if (visited[i]) continue;
+            if (nearestDistance == -1 || graph[currentVertex][i] < nearestDistance) {
+                nearestDistance = graph[currentVertex][i];
+                nearestVertex = i;
             }
         }
-        
-        if(pos == - 1)
-            break;
 
-        path.push_back(pos);
-        visited[pos] = true;
+        if (nearestVertex == -1) break; // Todos os vértices foram visitados
+
+        path.push_back(nearestVertex);
+        visited[nearestVertex] = true;
     }
 
     return path;
 }
 
-vector<int> choose_neighbor(vector<int> &path){
+// Gera um vizinho aleatório trocando dois vértices no caminho
+vector<int> generateNeighbor(vector<int> &path) {
     uniform_int_distribution<int> distribution(0, path.size() - 1);
-    int i, j; 
-    do{
+    int i, j;
+    do {
         i = distribution(generator);
         j = distribution(generator);
-    }while(i == j);
+    } while (i == j);
 
-    vector<int> result = path;
-    swap(result[i], result[j]);
-
-    return result;
+    vector<int> neighborPath = path;
+    swap(neighborPath[i], neighborPath[j]);
+    return neighborPath;
 }
 
-vector<vector<int>> generate_permutations(vector<int> &path){
-    vector<vector<int>> neighbors;
-    for(int i = 0; i < path.size(); i++){
-        for(int j = i + 1; j < path.size(); j++){
-            swap(path[i], path[j]);
-            neighbors.push_back(path);
-            swap(path[i], path[j]);
-        }
+// Calcula o custo total do caminho
+double calculatePathCost(vector<vector<double>> &graph, vector<int> &path) {
+    double totalCost = 0;
+    for (int i = 1; i < path.size(); i++) {
+        totalCost += graph[path[i - 1]][path[i]];
     }
-
-    return neighbors;
+    totalCost += graph[path.back()][path[0]]; // Retorna ao ponto inicial
+    return totalCost;
 }
 
-double calculate_path(vector<vector<double>> &graph, vector<int> &path){
-    double total = 0;
-    for(int i = 1; i < path.size(); i++){
-        total += graph[path[i-1]][path[i]];
-    }
+// Implementa o algoritmo de Simulated Annealing para minimizar o custo do caminho
+double simulatedAnnealing(vector<vector<double>> &graph, vector<int> &initialSolution) {
+    double temperature = 10;
+    double coolingRate = 0.9999;
+    vector<int> currentSolution = initialSolution;
+    vector<int> bestSolution = initialSolution;
 
-    total += graph[path.size() - 1][0];
-    return total;
-}
+    ll iteration = 0;
+    while (temperature > ERROR_THRESHOLD) {
+        ll maxIterations = 1000;
+        while (iteration < maxIterations) {
+            vector<int> neighborSolution = generateNeighbor(currentSolution);
 
-double random_number(){
-    srand(time(nullptr));
-    return static_cast<double>(rand()) / RAND_MAX;
-}
-
-double simulated_annealing(vector<vector<double>> &graph, vector<int> &inicial_solution){
-    double T = 100000;
-    double alpha = 0.999;
-    vector<int> s = inicial_solution;
-    vector<int> best_solution = inicial_solution;
-
-    vector<int> s_linha;
-    vector<vector<int>> neighbors;
-
-    ll i = 0;
-    while(T > erro){
-        ll sa_max = 100;
-        while(i < sa_max){
-            s_linha = choose_neighbor(s);
-
-            double value_path_s = calculate_path(graph, s);
-            double value_path_s_linha = calculate_path(graph, s_linha);
-            
-            if(value_path_s_linha < value_path_s){
-                s = s_linha;
-                if(value_path_s_linha < calculate_path(graph, best_solution)){
-                    best_solution = s_linha;
+            double currentCost = calculatePathCost(graph, currentSolution);
+            double neighborCost = calculatePathCost(graph, neighborSolution);
+    
+            if (neighborCost < currentCost) {
+                currentSolution = neighborSolution;
+                if (neighborCost < calculatePathCost(graph, bestSolution)) {
+                    bestSolution = neighborSolution;
                 }
-            }else{
-
-                double fsL = value_path_s_linha;
-                double fs = value_path_s;
-                double taxa = (fs - fsL) / T;
-
-                uniform_real_distribution<> dis(0.0, 1.0);
-                double r = dis(generator);
-                if(r < exp(taxa)){
-                    s = s_linha;
+            } else {
+                double acceptanceProbability = exp((currentCost - neighborCost) / temperature);
+                uniform_real_distribution<> distribution(0.0, 1.0);
+                if (distribution(generator) < acceptanceProbability) {
+                    currentSolution = neighborSolution;
                 }
             }
 
-            i++;
+            iteration++;
         }
-        
-        T *= alpha;
-        i = 0;
+
+        temperature *= coolingRate; // Resfria a temperatura
+        iteration = 0;
     }
 
-    return calculate_path(graph, best_solution);
+    return calculatePathCost(graph, bestSolution);
 }
 
-int main(){
+int main() {
+    int vertexCount;
+    cin >> vertexCount;
 
-    int number_of_vertices;
-    cin >> number_of_vertices;
+    // Inicializa a matriz de adjacência
+    vector<vector<double>> graph(vertexCount, vector<double>(vertexCount));
+    readGraph(graph, vertexCount);
 
-    vector<vector<double>> graph(number_of_vertices, vector<double>(number_of_vertices));
-    read_graph(graph, number_of_vertices);
-    
-    vector<int> inicial_solution = nearest_neighbor(graph, number_of_vertices);
-    
-    double result_simulated_annealing = simulated_annealing(graph, inicial_solution);
-    cout << result_simulated_annealing << endl;
-    
+    // Gera a solução inicial com o algoritmo do Vizinho Mais Próximo
+    vector<int> initialSolution = nearestNeighborPath(graph, vertexCount);
+
+    // Executa o Simulated Annealing e exibe o resultado
+    double optimalCost = simulatedAnnealing(graph, initialSolution);
+    cout << fixed << setprecision(2) << optimalCost << endl;
+
     return 0;
 }
