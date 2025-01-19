@@ -14,6 +14,16 @@ double calculateRouteCost(const vector<int>& route, const vector<vector<double>>
     return cost;
 }
 
+// Função para gerar uma rota inicial aleatória
+vector<int> generateRandomRoute(int vertexCount) {
+    vector<int> route(vertexCount);
+    iota(route.begin(), route.end(), 0);
+    random_device rd;
+    mt19937 g(rd());
+    shuffle(route.begin(), route.end(), g);  // Embaralha aleatoriamente a rota
+    return route;
+}
+
 // Função para gerar um vizinho trocando dois vértices
 vector<int> generateNeighbor(const vector<int>& currentRoute) {
     vector<int> neighbor = currentRoute;
@@ -66,20 +76,18 @@ void updateTabuList(vector<vector<int>>& tabuList) {
 }
 
 // Implementação da Busca Tabu
-double tabuSearch(const vector<vector<double>>& graph, int vertexCount) {
-    // Inicializa rota inicial (ciclo trivial 0 -> 1 -> 2 -> ... -> n -> 0)
-    vector<int> currentRoute(vertexCount);
-    iota(currentRoute.begin(), currentRoute.end(), 0);
+double tabuSearch(const vector<vector<double>>& graph, int vertexCount, int tabuDuration, int interationMAX) {
+    // Inicializa rota inicial aleatória
+    vector<int> currentRoute = generateRandomRoute(vertexCount);
     vector<int> bestRoute = currentRoute;
 
     double bestCost = calculateRouteCost(bestRoute, graph);
 
     // Lista tabu (matriz para trocas entre vértices)
     vector<vector<int>> tabuList(vertexCount, vector<int>(vertexCount, 0));
-    int tabuDuration = 10;
     int iterationsWithoutImprovement = 0;
 
-    while (iterationsWithoutImprovement < 100) {
+    while (iterationsWithoutImprovement < interationMAX) {
         // Seleciona o melhor vizinho
         vector<int> neighbor = selectBestNeighbor(currentRoute, bestRoute, tabuList, graph, tabuDuration);
 
@@ -138,8 +146,31 @@ int main() {
     vector<vector<double>> graph(vertexCount, vector<double>(vertexCount));
     readGraph(graph, vertexCount);
 
-    double bestCost = tabuSearch(graph, vertexCount);
-    cout << "Best TSP Cost: " << fixed << setprecision(2) << bestCost << endl;
+    vector<int> tabuDuration = {5, 10, 20};
+    vector<int> interationMAX = {5, 100, 200};
+
+    // Cria o arquivo de saída
+    ofstream file("results_bttsp.csv");
+
+    // Cabeçalho do CSV
+    file << "Duração Da Lista Tabu,Máximo de Iterações,Função Objetivo,Tempo (ms)\n";
+
+    // Loops para variar os parâmetros
+    for (int j = 0; j < tabuDuration.size(); j++) {
+        for (int k = 0; k < interationMAX.size(); k++) {
+            // Medir tempo de execução
+            auto start = chrono::high_resolution_clock::now();
+            double bestCost = tabuSearch(graph, vertexCount, tabuDuration[j], interationMAX[k]);
+            auto end = chrono::high_resolution_clock::now();
+            chrono::duration<double, milli> temp = end - start;
+
+            // Escreve os resultados no arquivo
+            file << tabuDuration[j] << ","
+                    <<  interationMAX[k] << ","
+                    << bestCost << "," << fixed << setprecision(2) 
+                    << temp.count() << "\n";
+        }
+    }
 
     return 0;
 }

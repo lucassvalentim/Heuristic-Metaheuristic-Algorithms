@@ -92,15 +92,12 @@ double calculatePathCost(vector<vector<double>> &graph, vector<int> &path) {
 }
 
 // Implementa o algoritmo de Simulated Annealing para minimizar o custo do caminho
-double simulatedAnnealing(vector<vector<double>> &graph, vector<int> &initialSolution) {
-    double temperature = 1000;
-    double coolingRate = 0.999;
+double simulatedAnnealing(vector<vector<double>> &graph, double temperature, double coolingRate, int maxIterations, vector<int> &initialSolution) {
     vector<int> currentSolution = initialSolution;
     vector<int> bestSolution = initialSolution;
 
     ll iteration = 0;
     while (temperature > ERROR_THRESHOLD) {
-        ll maxIterations = 100;
         while (iteration < maxIterations) {
             vector<int> neighborSolution = generateNeighbor(currentSolution);
 
@@ -144,9 +141,40 @@ int main() {
         initialSolution[i] = i;
     }
 
-    // Executa o Simulated Annealing e exibe o resultado
-    double optimalCost = simulatedAnnealing(graph, initialSolution);
-    cout << fixed << setprecision(2) << optimalCost << endl;
+    vector<int> temperature = {100, 1000, 10000};
+    vector<double> coolingRate = {0.5, 0.75, 0.9, 0.999};
+    vector<int> maxIterations = {5, 10, 50, 100};
 
+    // Cria o arquivo de saída
+    ofstream file("results_satsp.csv");
+
+    // Cabeçalho do CSV
+    file << "Temperatura,Coeficiente de Resfriamento,Máximo de Iterações,Execução,Função Objetivo,Tempo (ms)\n";
+
+    // Loops para variar os parâmetros
+    for (int l = 0; l < temperature.size(); l++) {
+        for (int j = 0; j < coolingRate.size(); j++) {
+            for (int k = 0; k < maxIterations.size(); k++) {
+                for (int i = 0; i < 10; i++) {
+                    // Medir tempo de execução
+                    auto start = chrono::high_resolution_clock::now();
+                    double optimalCost = simulatedAnnealing(graph, temperature[l], coolingRate[j], maxIterations[k], initialSolution);
+                    auto end = chrono::high_resolution_clock::now();
+                    chrono::duration<double, milli> temp = end - start;
+
+                    // Escreve os resultados no arquivo
+                    file << temperature[l] << ","
+                         << coolingRate[j] << ","
+                         << maxIterations[k] << ","
+                         << i + 1 << ","
+                         << fixed << setprecision(2) << optimalCost << ","
+                         << temp.count() << "\n";
+                }
+            }
+        }
+    }
+
+    file.close();
+    cout << "Resultados salvos em 'results_satsp.csv'" << endl;
     return 0;
 }

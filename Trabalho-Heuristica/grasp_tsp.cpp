@@ -33,7 +33,7 @@ vector<vector<double>> readGraph(vector<vector<double>> &graph, int vertexCount)
     return graph;
 }
 
-vector<ll> construcaoGulosaAleatoria(vector<vector<double>> &graph, int vertexCount){
+vector<ll> construcaoGulosaAleatoria(vector<vector<double>> &graph, int vertexCount, double alpha){
     vector<ll>solucao_parcial;
     solucao_parcial.push_back(0);
 
@@ -44,7 +44,7 @@ vector<ll> construcaoGulosaAleatoria(vector<vector<double>> &graph, int vertexCo
 
     ll ultima_cidade; 
     double c_min, c_max;
-    double limite, alpha = 0.1;
+    double limite;
 
     while(!lista_candidatos.empty()){
         vector<pair<double, int>> funcao_gulosa;
@@ -132,12 +132,12 @@ double tsp_search_local(vector<vector<double>> &graph, vector<ll> &current_path)
     return min;
 }
 
-double grasp(vector<vector<double>> &graph, int vertexCount){
-    vector<ll> s1 = construcaoGulosaAleatoria(graph, vertexCount);
+double grasp(vector<vector<double>> &graph, int vertexCount, ll graspMax, double alpha){
+    vector<ll> s1 = construcaoGulosaAleatoria(graph, vertexCount, alpha);
     double s_best = calculate_path(graph, s1);
     int iter = 0;
-    while(iter < GRASPmax){
-        s1 = construcaoGulosaAleatoria(graph, vertexCount);
+    while(iter < graspMax){
+        s1 = construcaoGulosaAleatoria(graph, vertexCount, alpha);
         double s_corrente = tsp_search_local(graph, s1);
         if(s_corrente < s_best){
             s_best = s_corrente;
@@ -156,7 +156,37 @@ int main(){
     vector<vector<double>> graph(vertexCount, vector<double>(vertexCount));
     readGraph(graph, vertexCount);
 
-    double result = grasp(graph, vertexCount);
-    cout << result << endl;
+    vector<ll> graspMax = {10, 100, 1000};
+    vector<double> alpha = {0.1, 0.125, 0.25, 0.5, 0.75};
+
+    // Cria o arquivo de saída
+    ofstream file("results_grasptsp.csv");
+
+    // Cabeçalho do CSV
+    file << "Máximo de Iterações,Coeficiente de Resfriamento,Execução,Função Objetivo,Tempo (ms)\n";
+
+    // Loops para variar os parâmetros
+    
+    for (int j = 0; j < graspMax.size(); j++) {
+        for (int k = 0; k < alpha.size(); k++) {
+            for (int i = 0; i < 10; i++) {
+                // Medir tempo de execução
+                auto start = chrono::high_resolution_clock::now();
+                double result = grasp(graph, vertexCount, graspMax[j], alpha[k]);
+                auto end = chrono::high_resolution_clock::now();
+                chrono::duration<double, milli> temp = end - start;
+
+                // Escreve os resultados no arquivo
+                file << graspMax[j] << ","
+                        << alpha[k] << ","
+                        << i + 1 << ","
+                        << fixed << setprecision(2) << result << ","
+                        << temp.count() << "\n";
+            }
+        }
+    }
+
+    file.close();
+    cout << "Resultados salvos em 'results_sakp.csv'" << endl;
     return 0;
 }

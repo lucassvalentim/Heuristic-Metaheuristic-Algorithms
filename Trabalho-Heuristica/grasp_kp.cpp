@@ -3,7 +3,6 @@ using namespace std;
 
 #define ll long long
 #define endl '\n'
-#define GRASP_MAX 100
 
 // Random number generator
 random_device rd;
@@ -46,11 +45,10 @@ ll evaluateConfiguration(const string &config, const vector<ll> &profits, const 
 /**
  * GRASP construction phase: Greedy randomized algorithm for the knapsack problem.
  */
-string greedyRandomizedConstruction(const vector<ll> &profits, const vector<ll> &weights, ll num_items, ll capacity) {
+string greedyRandomizedConstruction(const vector<ll> &profits, const vector<ll> &weights, double alpha, ll num_items, ll capacity) {
     string solution(num_items, '0');
     ll remaining_capacity = capacity;
-    double alpha = 0.1;
-
+    
     set<ll> candidate_set;
     for (int i = 0; i < num_items; i++) {
         if (weights[i] <= remaining_capacity) {
@@ -134,12 +132,12 @@ ll knapsackLocalSearch(const vector<ll> &profits, const vector<ll> &weights, str
 /**
  * GRASP metaheuristic: Combines construction and local search phases.
  */
-ll grasp(const vector<ll> &profits, const vector<ll> &weights, ll num_items, ll capacity) {
-    string greedy_solution = greedyRandomizedConstruction(profits, weights, num_items, capacity);
+ll grasp(const vector<ll> &profits, const vector<ll> &weights, ll graspMax, double alpha, ll num_items, ll capacity) {
+    string greedy_solution = greedyRandomizedConstruction(profits, weights, alpha, num_items, capacity);
     ll best_solution = evaluateConfiguration(greedy_solution, profits, weights, capacity);
 
-    for (int iteration = 0; iteration < GRASP_MAX; iteration++) {
-        string current_solution = greedyRandomizedConstruction(profits, weights, num_items, capacity);
+    for (int iteration = 0; iteration < graspMax; iteration++) {
+        string current_solution = greedyRandomizedConstruction(profits, weights, alpha, num_items, capacity);
         ll local_search_solution = knapsackLocalSearch(profits, weights, current_solution, capacity);
 
         // Update best solution if a better one is found
@@ -160,6 +158,38 @@ int main() {
         cin >> profits[i] >> weights[i];
     }
 
-    cout << grasp(profits, weights, num_items, capacity) << endl;
+
+    vector<ll> graspMax = {10, 100, 1000, 10000};
+    vector<double> alpha = {0.0625, 0.125, 0.25, 0.5, 0.75};
+
+    // Cria o arquivo de saída
+    ofstream file("results_graspkp.csv");
+
+    // Cabeçalho do CSV
+    file << "Máximo de Iterações,Coeficiente de Resfriamento,Execução,Função Objetivo,Tempo (ms)\n";
+
+    // Loops para variar os parâmetros
+    
+    for (int j = 0; j < graspMax.size(); j++) {
+        for (int k = 0; k < alpha.size(); k++) {
+            for (int i = 0; i < 10; i++) {
+                // Medir tempo de execução
+                auto start = chrono::high_resolution_clock::now();
+                ll optimalCost = grasp(profits, weights, graspMax[j], alpha[k], num_items, capacity);
+                auto end = chrono::high_resolution_clock::now();
+                chrono::duration<double, milli> temp = end - start;
+
+                // Escreve os resultados no arquivo
+                file << graspMax[j] << ","
+                        << alpha[k] << ","
+                        << i + 1 << ","
+                        << fixed << setprecision(2) << optimalCost << ","
+                        << temp.count() << "\n";
+            }
+        }
+    }
+
+    file.close();
+    cout << "Resultados salvos em 'results_sakp.csv'" << endl;
     return 0;
 }

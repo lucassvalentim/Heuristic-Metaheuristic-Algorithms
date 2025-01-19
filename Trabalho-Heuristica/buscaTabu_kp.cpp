@@ -15,24 +15,22 @@ Integer calculateKnapsackValue(string config, const vector<Integer>& values, con
     return totalValue;
 }
 
-string knapsackByValueDensity(const vector<Integer>& values, const vector<Integer>& weights, Integer capacity) {
-    vector<pair<double, Integer>> densityIndex;
-    for (size_t i = 0; i < values.size(); ++i) {
-        densityIndex.emplace_back(static_cast<double>(values[i]) / weights[i], i);
-    }
-
-    sort(densityIndex.rbegin(), densityIndex.rend());
-
+// Inicialização aleatória da solução
+string knapsackByRandom(const vector<Integer>& values, const vector<Integer>& weights, Integer capacity) {
     string result(values.size(), '0');
     Integer currentWeight = 0;
 
-    for (const auto& item : densityIndex) {
-        Integer index = item.second;
-        if (currentWeight + weights[index] <= capacity) {
-            result[index] = '1';
-            currentWeight += weights[index];
+    random_device rd;
+    mt19937 gen(rd());
+    uniform_int_distribution<> dis(0, 1);  // aleatório entre 0 e 1
+
+    for (size_t i = 0; i < values.size(); ++i) {
+        if (dis(gen) == 1 && currentWeight + weights[i] <= capacity) {
+            result[i] = '1';
+            currentWeight += weights[i];
         }
     }
+
     return result;
 }
 
@@ -76,18 +74,19 @@ string selectBestNeighbor(const string& current, const string& bestSoFar, const 
     return bestNeighbor;
 }
 
-Integer tabuSearch(const vector<Integer>& values, const vector<Integer>& weights, Integer capacity) {
-    string current = knapsackByValueDensity(values, weights, capacity);
+Integer tabuSearch(const vector<Integer>& values, const vector<Integer>& weights, Integer tabuDuration , Integer interationMAX, Integer capacity) {
+    // Inicialização aleatória da solução
+    string current = knapsackByRandom(values, weights, capacity);
     string bestSolution = current;
 
     vector<Integer> tabuList(values.size(), 0);
-    Integer iterationsWithoutImprovement = 0, penaltyFactor = 0, tabuDuration = 10;
+    Integer iterationsWithoutImprovement = 0, penaltyFactor = 0;
 
     for (const auto& weight : weights) {
         penaltyFactor += weight;
     }
 
-    while (iterationsWithoutImprovement < 100) {
+    while (iterationsWithoutImprovement < interationMAX) {
         string neighbor = selectBestNeighbor(current, bestSolution, tabuList, values, weights, capacity, penaltyFactor);
         updateTabuList(tabuList, neighbor.find('1'), tabuDuration);
 
@@ -113,6 +112,31 @@ int main() {
         cin >> values[i] >> weights[i];
     }
 
-    cout << tabuSearch(values, weights, capacity) << endl;
+    vector<int> tabuDuration = {5, 10, 20};
+    vector<int> interationMAX = {5, 100, 200};
+
+    // Cria o arquivo de saída
+    ofstream file("results_btkp.csv");
+
+    // Cabeçalho do CSV
+    file << "Duração Da Lista Tabu,Máximo de Iterações,Função Objetivo,Tempo (ms)\n";
+
+    // Loops para variar os parâmetros
+    for (int j = 0; j < tabuDuration.size(); j++) {
+        for (int k = 0; k < interationMAX.size(); k++) {
+            // Medir tempo de execução
+            auto start = chrono::high_resolution_clock::now();
+            Integer optimalCost = tabuSearch(values, weights, tabuDuration[j], interationMAX[k], capacity);
+            auto end = chrono::high_resolution_clock::now();
+            chrono::duration<double, milli> temp = end - start;
+
+            // Escreve os resultados no arquivo
+            file << tabuDuration[j] << ","
+                    <<  interationMAX[k] << ","
+                    << optimalCost << "," << fixed << setprecision(2) 
+                    << temp.count() << "\n";
+        }
+    }
+    
     return 0;
 }
