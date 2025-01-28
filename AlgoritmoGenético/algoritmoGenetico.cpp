@@ -131,6 +131,84 @@ vector<string> crossFunction(vector<pair<string, string>> &pairs, int lenghtSolu
     return offspring;
 }
 
+void mutation(vector<string> &offspring, double mutationRate, const vector<int> &weights, int capacity) {
+    uniform_real_distribution<double> disMutation(0, 1);
+    for (string &child : offspring) {
+        for (int j = 0; j < child.size(); j++) {
+            if (disMutation(generator) <= mutationRate) {
+                // Realiza a mutação no gene
+                child[j] = (child[j] == '1') ? '0' : '1';
+
+                // Recalcula o peso da solução e ajusta se necessário
+                int totalWeight = 0;
+                for (int k = 0; k < child.size(); k++) {
+                    if (child[k] == '1') {
+                        totalWeight += weights[k];
+                    }
+                }
+
+                // Reverte a mutação se exceder a capacidade
+                if (totalWeight > capacity) {
+                    child[j] = (child[j] == '1') ? '0' : '1';
+                }
+            }
+        }
+    }
+}
+
+set<pair<int, string>> updatePopulation(set<pair<int, string>> &population, int popSize) {
+    set<pair<int, string>> newPopulation;
+
+    // Calcular as probabilidades
+    vector<double> probabilities = calculateProbabilities(population);
+
+    // Vetores para indivíduos e valores acumulados
+    vector<pair<int, string>> individuals(population.begin(), population.end());
+    vector<bool> selected(individuals.size(), false);
+
+    int selectedCount = 0;
+
+    while (selectedCount < popSize) {
+        vector<double> cumulative(probabilities.size(), 0.0);
+        cumulative[0] = probabilities[0];
+
+        for (int i = 1; i < cumulative.size(); i++) {
+            cumulative[i] = cumulative[i - 1] + probabilities[i];
+        }
+
+        uniform_real_distribution<double> dis(0, 1);
+        double random = dis(generator);
+
+        for (int k = 0; k < cumulative.size(); k++) {
+            if (random <= cumulative[k] && !selected[k]) {
+                newPopulation.insert(individuals[k]);
+                selected[k] = true;
+                selectedCount++;
+
+                // Ajustar probabilidades
+                double totalProb = 0.0;
+                for (int l = 0; l < probabilities.size(); l++) {
+                    if (!selected[l]) {
+                        totalProb += probabilities[l];
+                    }
+                }
+
+                for (int l = 0; l < probabilities.size(); l++) {
+                    if (!selected[l]) {
+                        probabilities[l] /= totalProb;
+                    } else {
+                        probabilities[l] = 0.0;
+                    }
+                }
+
+                break;
+            }
+        }
+    }
+
+    return newPopulation;
+}
+
 int main(){
 
     int itemCount, capacity;
@@ -155,7 +233,14 @@ int main(){
         cout << "pai1: " << x.first << " pai2: " << x.second << endl;
     }
 
+    cout << "filhos: ";
     vector<string> s = crossFunction(pairs, itemCount);
+    for(auto x: s)
+        cout << x << ' ';
+    cout << endl;
+
+    cout << "novo s: ";
+    mutation(s, 0.3, weights, capacity);
     for(auto x: s)
         cout << x << ' ';
     cout << endl;
