@@ -14,7 +14,6 @@ int AptidaoFunciton(string s, vector<int> &values){
             totalValues += values[i];
         }
     }
-
     return totalValues;
 }
 
@@ -23,7 +22,6 @@ set<pair<int, string>> avliationPopulation(set<pair<int, string>> &population, v
     for(auto x : population){
         newPopulation.insert({AptidaoFunciton(x.second, values), x.second});
     }
-
     return newPopulation;
 }
 
@@ -42,7 +40,6 @@ set<pair<int, string>> generateRandomInicialSolution(vector<int> &values, vector
         }
         uniqueSolutions.insert({AptidaoFunciton(inicialSolution, values), inicialSolution});
     }
-
     return uniqueSolutions;
 }
 
@@ -60,6 +57,7 @@ vector<double> calculateProbabilities(set<pair<int, string>> &population){
 
     return probabilities;
 }
+
 
 vector<pair<string, string>> formPairs(vector<string> &parents, double crossRate){
     uniform_real_distribution<double> dis(0, 1);
@@ -136,10 +134,8 @@ void mutation(vector<string> &offspring, double mutationRate, const vector<int> 
     for (string &child : offspring) {
         for (int j = 0; j < child.size(); j++) {
             if (disMutation(generator) <= mutationRate) {
-                // Realiza a mutação no gene
                 child[j] = (child[j] == '1') ? '0' : '1';
 
-                // Recalcula o peso da solução e ajusta se necessário
                 int totalWeight = 0;
                 for (int k = 0; k < child.size(); k++) {
                     if (child[k] == '1') {
@@ -147,7 +143,6 @@ void mutation(vector<string> &offspring, double mutationRate, const vector<int> 
                     }
                 }
 
-                // Reverte a mutação se exceder a capacidade
                 if (totalWeight > capacity) {
                     child[j] = (child[j] == '1') ? '0' : '1';
                 }
@@ -159,16 +154,15 @@ void mutation(vector<string> &offspring, double mutationRate, const vector<int> 
 set<pair<int, string>> updatePopulation(set<pair<int, string>> &population, int popSize) {
     set<pair<int, string>> newPopulation;
 
-    // Calcular as probabilidades
     vector<double> probabilities = calculateProbabilities(population);
-
-    // Vetores para indivíduos e valores acumulados
     vector<pair<int, string>> individuals(population.begin(), population.end());
     vector<bool> selected(individuals.size(), false);
 
     int selectedCount = 0;
+    int attempts = 0, maxAttempts = 100;
 
-    while (selectedCount < popSize) {
+    while (selectedCount < popSize && attempts < maxAttempts) {
+        attempts++;
         vector<double> cumulative(probabilities.size(), 0.0);
         cumulative[0] = probabilities[0];
 
@@ -184,24 +178,28 @@ set<pair<int, string>> updatePopulation(set<pair<int, string>> &population, int 
                 newPopulation.insert(individuals[k]);
                 selected[k] = true;
                 selectedCount++;
-
-                // Ajustar probabilidades
-                double totalProb = 0.0;
-                for (int l = 0; l < probabilities.size(); l++) {
-                    if (!selected[l]) {
-                        totalProb += probabilities[l];
-                    }
-                }
-
-                for (int l = 0; l < probabilities.size(); l++) {
-                    if (!selected[l]) {
-                        probabilities[l] /= totalProb;
-                    } else {
-                        probabilities[l] = 0.0;
-                    }
-                }
-
                 break;
+            }
+        }
+    }
+
+    if (selectedCount == 0) {
+        newPopulation.insert(individuals[0]);
+        selected[0] = true;
+        selectedCount++;
+    }
+
+    double totalProb = 0.0;
+    for (int l = 0; l < probabilities.size(); l++) {
+        if (!selected[l]) {
+            totalProb += probabilities[l];
+        }
+    }
+
+    if (totalProb > 0.0) {
+        for (int l = 0; l < probabilities.size(); l++) {
+            if (!selected[l]) {
+                probabilities[l] /= totalProb;
             }
         }
     }
@@ -209,40 +207,51 @@ set<pair<int, string>> updatePopulation(set<pair<int, string>> &population, int 
     return newPopulation;
 }
 
-int main(){
+int GeneticAlgorithm(vector<int> &values, vector<int> &weights, int itemCount, int capacity, 
+                     double mutationRate, double numParentsRate, double crossRate, int popSize) {
+    set<pair<int, string>> population = generateRandomInicialSolution(values, weights, capacity, popSize);
+    
+    const int maxGeneration = 1000;
+    int generation = 0;
 
+    while (generation < maxGeneration) {
+        set<pair<int, string>> evaluatedPopulation = avliationPopulation(population, values);
+
+        int numParents = max(2, static_cast<int>(numParentsRate * popSize)); 
+        if (numParents % 2 != 0) numParents++;
+        vector<pair<string, string>> parents = selectParents(evaluatedPopulation, numParentsRate, popSize, crossRate);
+
+        vector<string> offspring = crossFunction(parents, itemCount);
+        mutation(offspring, mutationRate, weights, capacity);
+
+        for (const string &child : offspring) {
+            evaluatedPopulation.insert({0, child});
+        }
+        evaluatedPopulation = avliationPopulation(evaluatedPopulation, values);
+        population = updatePopulation(evaluatedPopulation, popSize);
+
+        generation++;
+    }
+
+    return (*population.rbegin()).first;
+}
+
+int main() {
     int itemCount, capacity;
     cin >> itemCount >> capacity;
 
     vector<int> values(itemCount), weights(itemCount);
-
-    for(int i = 0; i < itemCount; i++){
+    for (int i = 0; i < itemCount; i++) {
         cin >> values[i] >> weights[i];
     }
 
-    int popSize = itemCount;
-    set<pair<int, string>> RandomInicialSolution = generateRandomInicialSolution(values, weights, capacity, popSize);
-    RandomInicialSolution = avliationPopulation(RandomInicialSolution, values);
+    double mutationRate = 0.05;
+    double numParentsRate = 0.5;
+    double crossRate = 0.8;
+    int popSize = min(100, 10 * itemCount);
 
-    for(auto s : RandomInicialSolution){
-        cout << s.second << " -> " << s.first << endl;
-    }
+    int result = GeneticAlgorithm(values, weights, itemCount, capacity, mutationRate, numParentsRate, crossRate, popSize);
+    cout << result << endl;
 
-    vector<pair<string, string>> pairs = selectParents(RandomInicialSolution, 0.7, popSize, 0.8);
-    for(auto x : pairs){
-        cout << "pai1: " << x.first << " pai2: " << x.second << endl;
-    }
-
-    cout << "filhos: ";
-    vector<string> s = crossFunction(pairs, itemCount);
-    for(auto x: s)
-        cout << x << ' ';
-    cout << endl;
-
-    cout << "novo s: ";
-    mutation(s, 0.3, weights, capacity);
-    for(auto x: s)
-        cout << x << ' ';
-    cout << endl;
     return 0;
 }
