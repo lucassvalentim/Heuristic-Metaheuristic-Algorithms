@@ -99,10 +99,45 @@ int metodo_roleta(vector<pair<int, double>> &probabilidades){
     return j;
 }
 
-void ACO(vector<vector<double>> &graph, int vertexCount){
-    int Kformigas = vertexCount;
+double calculatePathCost(vector<vector<double>> &graph, vector<int> &path) {
+    double totalCost = 0;
+    for (int i = 1; i < path.size(); i++) {
+        totalCost += graph[path[i - 1]][path[i]];
+    }
+    totalCost += graph[path.back()][path[0]]; // Retorna ao ponto inicial
+    return totalCost;
+}
 
-    const int maxIteracoes = 1;
+vector<int> melhor_caminho(vector<vector<double>> &graph, vector<vector<int>> &caminhos){
+    vector<pair<double, int>> custo_caminhos(caminhos.size());
+    for(int i = 0; i < caminhos.size(); i++){
+        custo_caminhos[i] = {calculatePathCost(graph, caminhos[i]), i};
+    }
+
+    sort(custo_caminhos.begin(), custo_caminhos.end());
+    return caminhos[custo_caminhos[0].second];
+}
+
+void evaporar(vector<vector<double>> &feromonios, double taxaEvaporacao, int vertexCount){
+    for(int i = 0; i < vertexCount; i++){
+        for(int j = 0; j < vertexCount; j++){
+            feromonios[i][j] = (1 - taxaEvaporacao) * feromonios[i][j];
+        }
+    }
+}
+
+void reforcar(vector<vector<double>> &feromonios, vector<int> &melhorCaminho, double delta, int vertexCount){
+    for(int i = 0; i < melhorCaminho.size() - 1; i++){
+        feromonios[melhorCaminho[i]][melhorCaminho[i + 1]] += delta;
+        feromonios[melhorCaminho[i+1]][melhorCaminho[i]] += delta;
+    }
+}
+
+double ACO(vector<vector<double>> &graph, int vertexCount){
+    int Kformigas = vertexCount;
+    double taxaEvaporacao = 0.01;
+
+    const int maxIteracoes = 100;
     int inter = 0;
 
     vector<vector<double>> feromonios(vertexCount, vector<double>(vertexCount));
@@ -110,6 +145,7 @@ void ACO(vector<vector<double>> &graph, int vertexCount){
     inicializa_feromonios(feromonios, 0.1, vertexCount);
     inicializa_heuristica(heuristica, graph, vertexCount);
 
+    vector<int> bestSolution;
     while(inter < maxIteracoes){
         vector<vector<int>> caminhos_formigas;
         for(int formiga = 0; formiga < Kformigas; formiga++){
@@ -128,7 +164,7 @@ void ACO(vector<vector<double>> &graph, int vertexCount){
             caminho_corrent.push_back(current);
 
             while(!s.empty()){
-                double alpha = 1;
+                double alpha = 2.5;
                 double beta = 1;
 
                 vector<pair<int, double>> p = probabilidade(feromonios, heuristica, visitados, current, alpha, beta, vertexCount);
@@ -141,41 +177,35 @@ void ACO(vector<vector<double>> &graph, int vertexCount){
                 caminho_corrent.push_back(current);
             }
             caminho_corrent.push_back(formiga);
-
-            for(auto fora : caminho_corrent)
-                cout << fora << ' ';
-            cout << endl;
             caminhos_formigas.push_back(caminho_corrent);
-            /*
-                Fazer uma função que receba caminhos_formigas e retorne o melhor dos caminhos
-            */
         }
+
+        evaporar(feromonios, taxaEvaporacao, vertexCount);
+
+        vector<int> pi = melhor_caminho(graph, caminhos_formigas);
+        if(bestSolution.size() == 0 || calculatePathCost(graph, pi) <   calculatePathCost(graph, bestSolution)){
+            bestSolution = pi;
+        }
+
+        double delta = 10/calculatePathCost(graph, pi);
+        reforcar(feromonios, pi, delta, vertexCount);
 
         inter++;
     }
+
+    return calculatePathCost(graph ,bestSolution);
 }
 
 int main() {
-    int vertexCount = 5;
+    int vertexCount;
     cin >> vertexCount;
 
     // Inicializa a matriz de adjacência
-    // vector<vector<double>> graph = {{0, 22, 50, 48, 29}, {22, 0, 30, 34, 32}, {50, 30, 0, 22, 23}, {48, 34, 22, 0, 35}, {29, 32, 23, 35, 0}};
     vector<vector<double>> graph(vertexCount, vector<double>(vertexCount));
     readGraph(graph, vertexCount);
-
-    // vector<bool> visitados(vertexCount, false);
-    // visitados[0] = true;
-
-    // vector<vector<double>> feromonios(vertexCount, vector<double>(vertexCount));
-    // vector<vector<double>> heuristica(vertexCount, vector<double>(vertexCount));
-    // inicializa_feromonios(feromonios, 0.1, vertexCount);
-    // inicializa_heuristica(heuristica, graph, vertexCount);
-
-    // vector<pair<int, double>> p = probabilidade(feromonios, heuristica, visitados, 0, 1, 1, vertexCount);
-    // metodo_roleta(p);
     
-    ACO(graph, vertexCount);   
+    double result = ACO(graph, vertexCount);
+    cout << result << endl;   
 
     return 0;
 }
