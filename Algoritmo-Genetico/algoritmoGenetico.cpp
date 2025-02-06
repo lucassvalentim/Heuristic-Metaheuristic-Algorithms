@@ -7,57 +7,95 @@ using namespace std;
 random_device rd;
 mt19937 generator(rd());
 
-int AptidaoFunciton(string s, vector<int> &values){
-    int totalValues = 0;
-    for(int i = 0; i < s.size(); i++){
-        if(s[i] == '1'){
-            totalValues += values[i];
-        }
-    }
-    return totalValues;
+int comp (pair<string, int> &a, pair<string, int> &b){
+    return (b.second < a.second);
 }
 
-set<pair<int, string>> avliationPopulation(set<pair<int, string>> &population, vector<int> &values){
-    set<pair<int, string>> newPopulation;
-    for(auto x : population){
-        newPopulation.insert({AptidaoFunciton(x.second, values), x.second});
-    }
-    return newPopulation;
-}
-
-set<pair<int, string>> generateRandomInicialSolution(vector<int> &values, vector<int> &weights, int capacity, int popSize){
-    set<pair<int, string>> uniqueSolutions;
+vector<pair<string, int>> generateRandomInicialSolution(vector<int> &values, vector<int> &weights, int capacity, int popSize){
+    vector<pair<string, int>> pop;
+    set<string> uniqueSolutions;
     uniform_real_distribution<double>dis(0, 1);
 
-    while(uniqueSolutions.size() < popSize){
+    while(pop.size() < popSize){
         int totalCapacity = 0;
         string inicialSolution(values.size(), '0');
+        // Percorre o gene de cada individuo e o escolhe como 0 e 1 de forma aleatória
         for(int i = 0; i < inicialSolution.size(); i++){
             if(dis(generator) < 0.5 && totalCapacity + weights[i] <= capacity){
                 inicialSolution[i] = '1';
                 totalCapacity += weights[i];
             }
         }
-        uniqueSolutions.insert({AptidaoFunciton(inicialSolution, values), inicialSolution});
+        // Permite não gerar soluções repetidas
+        if(!uniqueSolutions.count(inicialSolution)){
+            pop.push_back({inicialSolution, 0});
+            uniqueSolutions.insert(inicialSolution);
+        }
     }
-    return uniqueSolutions;
+
+    return pop;
 }
 
-vector<double> calculateProbabilities(set<pair<int, string>> &population){
-    vector<double> probabilities;
-    double totalFitness = 0.0;
-
-    for(const pair<int, string> &individual : population){
-        totalFitness += individual.first;
+int aptidaoFunciton(string s, vector<int> &values, vector<int> &weights, int capacity){
+    int totalValues = 0;
+    int totalCapacity = 0;
+    for(int i = 0; i < s.size(); i++){
+        if(s[i] == '1'){
+            totalValues += values[i];
+            totalCapacity += weights[i];
+        }
     }
 
-    for(const pair<int, string> &individual : population){
-        probabilities.push_back(individual.first / totalFitness);
+    if(totalCapacity > capacity)
+        totalValues *= 0.1;
+
+    return totalValues;
+}
+
+void avliationPopulation(vector<pair<string, int>> &population, vector<int> &values, vector<int> &weights, int capacity){
+    for(auto &x : population){
+        x.second = aptidaoFunciton(x.first, values, weights, capacity);
+    }
+}
+
+vector<pair<int, double>> calculateProbabilities(vector<pair<string, int>> &population){
+    vector<pair<int, double>> probabilities;
+    double totalFitness = 0.0;
+
+    for(const pair<string, int> &individual : population){
+        totalFitness += individual.second;
+    }
+
+    for(int i = 0; i < population.size(); i++){
+        probabilities.push_back({i, population[i].second / totalFitness});
     }
 
     return probabilities;
 }
 
+int rouletteMethod(vector<pair<int, double>> &probabilities){
+    // Construção da roleta
+    vector<pair<int, double>> roullet(probabilities.size());
+    roullet[0].first = probabilities[0].first;
+    roullet[0].second = probabilities[0].second;
+    for(int i = 1; i < probabilities.size(); i++){
+        roullet[i].first = probabilities[i].first;
+        roullet[i].second = roullet[i - 1].second + probabilities[i].second;
+    }
+
+    // Execução da roleta
+    uniform_real_distribution<double> dis(0, 1);
+    double random = dis(generator);
+    int index = 0;
+    for(int i = 0; i < roullet.size(); i++){
+        if(random <= roullet[i].second){
+            index = roullet[i].first;
+            break;
+        }
+    }
+
+    return index;
+}
 
 vector<pair<string, string>> formPairs(vector<string> &parents, double crossRate){
     uniform_real_distribution<double> dis(0, 1);
@@ -69,46 +107,50 @@ vector<pair<string, string>> formPairs(vector<string> &parents, double crossRate
         }
     }
 
-    if(pairs.size() == 0){
-        pairs.push_back({parents[0], parents[1]});
-    }
-
     return pairs;
 }
 
-vector<pair<string, string>> selectParents(set<pair<int, string>> &population, double numParentsRates, int popSize, double crossRate){
+vector<pair<string, string>> selectParents(vector<pair<string, int>> &population, double rateParents, double crossRate, int popSize){
+    //Definição da quantidade de pais: A quantidade tem que ser par.
+    int numParents = rateParents * popSize;
+    if(numParents % 2 == 1) numParents--;
 
-    int numParents = numParentsRates * popSize;
-
-    vector<double> probabilities = calculateProbabilities(population);
-
-    vector<double> cumulative(probabilities.size(), 0.0);
-    cumulative[0] = probabilities[0];
-    for(int i = 1; i < probabilities.size(); i++){
-        cumulative[i] = cumulative[i - 1] + probabilities[i];
-    }
-
-    vector<string> individuals;
-    for(const pair<int, string> &indiv : population){
-        individuals.push_back(indiv.second);
-    }
-
-    uniform_real_distribution<double>dis(0, 1);
-
-    vector<string> parents;
+    // Probabilidade de cada individuo ser um pai
+    vector<pair<int, double>> probabilities = calculateProbabilities(population);
+    vector<int> selected(probabilities.size(), false); // Usado para controlar qual pai foi escolhido
+    
+    vector<string> potencialParents(numParents);// Pais que serão utilizados para formar pares.
     for(int i = 0; i < numParents; i++){
-        double randomNum = dis(generator);
+        // Seleciona o pai.        
+        int indexParent = rouletteMethod(probabilities);
+        potencialParents[i] = population[indexParent].first;
+        selected[indexParent] = true;
 
-        for(int j = 0; j < cumulative.size(); j++){
-            if(randomNum <= cumulative[j]){
-                parents.push_back(individuals[j]);
-                break;
+        /*
+            Escolhido o pai, é necessário descartá-lo da próxima escolha e refazer a distribuição
+            de probabilidades.
+        */
+        double totalProb = 0.0;
+        for(int i = 0; i < probabilities.size(); i++){
+            if(!selected[probabilities[i].first]){
+                totalProb += probabilities[i].second;
             }
         }
+
+        if(totalProb == 0)
+            break;
+
+        vector<pair<int, double>> auxProb;
+        for(int i = 0; i < probabilities.size(); i++){
+            if(!selected[probabilities[i].first]){
+                auxProb.push_back({probabilities[i].first, probabilities[i].second / totalProb});
+            }
+        }
+
+        probabilities = auxProb;
     }
 
-    vector<pair<string, string>> pairs = formPairs(parents, crossRate);
-
+    vector<pair<string, string>> pairs = formPairs(potencialParents, crossRate);
     return pairs;
 }
 
@@ -129,79 +171,46 @@ vector<string> crossFunction(vector<pair<string, string>> &pairs, int lenghtSolu
     return offspring;
 }
 
-void mutation(vector<string> &offspring, double mutationRate, const vector<int> &weights, int capacity) {
+void mutation(vector<string> &offspring, double mutationRate, vector<int> &weights, int capacity) {
     uniform_real_distribution<double> disMutation(0, 1);
     for (string &child : offspring) {
         for (int j = 0; j < child.size(); j++) {
             if (disMutation(generator) <= mutationRate) {
                 child[j] = (child[j] == '1') ? '0' : '1';
-
-                int totalWeight = 0;
-                for (int k = 0; k < child.size(); k++) {
-                    if (child[k] == '1') {
-                        totalWeight += weights[k];
-                    }
-                }
-
-                if (totalWeight > capacity) {
-                    child[j] = (child[j] == '1') ? '0' : '1';
-                }
             }
         }
     }
 }
 
-set<pair<int, string>> updatePopulation(set<pair<int, string>> &population, int popSize) {
-    set<pair<int, string>> newPopulation;
+vector<pair<string, int>> updatePopulation(vector<pair<string, int>> &population, int popSize) {
+    vector<pair<string, int>> newPopulation;
 
-    vector<double> probabilities = calculateProbabilities(population);
-    vector<pair<int, string>> individuals(population.begin(), population.end());
-    vector<bool> selected(individuals.size(), false);
+    vector<pair<int, double>> probabilities = calculateProbabilities(population);
+    vector<bool> selected(probabilities.size(), false);
 
-    int selectedCount = 0;
-    int attempts = 0, maxAttempts = 100;
+    for(int i = 0; i < popSize; i++){
+        int indexIndivuo = rouletteMethod(probabilities);
+        newPopulation.push_back(population[indexIndivuo]);
+        selected[indexIndivuo] = true;
 
-    while (selectedCount < popSize && attempts < maxAttempts) {
-        attempts++;
-        vector<double> cumulative(probabilities.size(), 0.0);
-        cumulative[0] = probabilities[0];
-
-        for (int i = 1; i < cumulative.size(); i++) {
-            cumulative[i] = cumulative[i - 1] + probabilities[i];
-        }
-
-        uniform_real_distribution<double> dis(0, 1);
-        double random = dis(generator);
-
-        for (int k = 0; k < cumulative.size(); k++) {
-            if (random <= cumulative[k] && !selected[k]) {
-                newPopulation.insert(individuals[k]);
-                selected[k] = true;
-                selectedCount++;
-                break;
+        double totalProb = 0.0;
+        for(int i = 0; i < probabilities.size(); i++){
+            if(!selected[probabilities[i].first]){
+                totalProb += probabilities[i].second;
             }
         }
-    }
 
-    if (selectedCount == 0) {
-        newPopulation.insert(individuals[0]);
-        selected[0] = true;
-        selectedCount++;
-    }
+        if(totalProb == 0)
+            break;
 
-    double totalProb = 0.0;
-    for (int l = 0; l < probabilities.size(); l++) {
-        if (!selected[l]) {
-            totalProb += probabilities[l];
-        }
-    }
-
-    if (totalProb > 0.0) {
-        for (int l = 0; l < probabilities.size(); l++) {
-            if (!selected[l]) {
-                probabilities[l] /= totalProb;
+        vector<pair<int, double>> auxProb;
+        for(int i = 0; i < probabilities.size(); i++){
+            if(!selected[probabilities[i].first]){
+                auxProb.push_back({probabilities[i].first, probabilities[i].second / totalProb});
             }
         }
+
+        probabilities = auxProb;
     }
 
     return newPopulation;
@@ -209,31 +218,31 @@ set<pair<int, string>> updatePopulation(set<pair<int, string>> &population, int 
 
 int GeneticAlgorithm(vector<int> &values, vector<int> &weights, int itemCount, int capacity, 
                      double mutationRate, double numParentsRate, double crossRate, int popSize) {
-    set<pair<int, string>> population = generateRandomInicialSolution(values, weights, capacity, popSize);
+    vector<pair<string, int>> population = generateRandomInicialSolution(values, weights, capacity, popSize);
     
     const int maxGeneration = 1000;
     int generation = 0;
 
     while (generation < maxGeneration) {
-        set<pair<int, string>> evaluatedPopulation = avliationPopulation(population, values);
+        avliationPopulation(population, values, weights, capacity);
 
-        int numParents = max(2, static_cast<int>(numParentsRate * popSize)); 
-        if (numParents % 2 != 0) numParents++;
-        vector<pair<string, string>> parents = selectParents(evaluatedPopulation, numParentsRate, popSize, crossRate);
+        vector<pair<string, string>> parents = selectParents(population, numParentsRate, crossRate, popSize);
 
         vector<string> offspring = crossFunction(parents, itemCount);
         mutation(offspring, mutationRate, weights, capacity);
 
         for (const string &child : offspring) {
-            evaluatedPopulation.insert({0, child});
+            population.push_back({child, 0});
         }
-        evaluatedPopulation = avliationPopulation(evaluatedPopulation, values);
-        population = updatePopulation(evaluatedPopulation, popSize);
+        avliationPopulation(population, values, weights, capacity);
+        population = updatePopulation(population, popSize);
 
         generation++;
     }
 
-    return (*population.rbegin()).first;
+    sort(population.begin(), population.end(), comp);
+
+    return population[0].second;
 }
 
 int main() {
@@ -245,13 +254,7 @@ int main() {
         cin >> values[i] >> weights[i];
     }
 
-    double mutationRate = 0.05;
-    double numParentsRate = 0.5;
-    double crossRate = 0.8;
-    int popSize = min(100, 10 * itemCount);
-
-    int result = GeneticAlgorithm(values, weights, itemCount, capacity, mutationRate, numParentsRate, crossRate, popSize);
+    int result = GeneticAlgorithm(values, weights, itemCount, capacity, 0.01, 0.5, 0.9, itemCount * 2);
     cout << result << endl;
-
     return 0;
 }
